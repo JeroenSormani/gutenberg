@@ -37,10 +37,6 @@ const blockAttributes = {
 		source: 'children',
 		selector: 'a',
 	},
-	align: {
-		type: 'string',
-		default: 'none',
-	},
 	backgroundColor: {
 		type: 'string',
 	},
@@ -76,16 +72,16 @@ export const settings = {
 
 	attributes: blockAttributes,
 
-	getEditWrapperProps( attributes ) {
-		const { align } = attributes;
-		const props = { 'data-resized': true };
-
-		if ( 'left' === align || 'right' === align || 'center' === align ) {
-			props[ 'data-align' ] = align;
-		}
-
-		return props;
+	supports: {
+		align: true,
+		alignWide: false,
 	},
+
+	styles: [
+		{ name: 'default', label: __( 'Rounded' ), isDefault: true },
+		{ name: 'outline', label: __( 'Outline' ) },
+		{ name: 'squared', label: __( 'Squared' ) },
+	],
 
 	edit,
 
@@ -94,7 +90,6 @@ export const settings = {
 			url,
 			text,
 			title,
-			align,
 			backgroundColor,
 			textColor,
 			customBackgroundColor,
@@ -117,7 +112,7 @@ export const settings = {
 		};
 
 		return (
-			<div className={ `align${ align }` }>
+			<div>
 				<RichText.Content
 					tagName="a"
 					className={ buttonClasses }
@@ -132,12 +127,16 @@ export const settings = {
 
 	deprecated: [ {
 		attributes: {
-			...pick( blockAttributes, [ 'url', 'title', 'text', 'align' ] ),
+			...pick( blockAttributes, [ 'url', 'title', 'text' ] ),
 			color: {
 				type: 'string',
 			},
 			textColor: {
 				type: 'string',
+			},
+			align: {
+				type: 'string',
+				default: 'none',
 			},
 		},
 
@@ -168,12 +167,16 @@ export const settings = {
 	},
 	{
 		attributes: {
-			...pick( blockAttributes, [ 'url', 'title', 'text', 'align' ] ),
+			...pick( blockAttributes, [ 'url', 'title', 'text' ] ),
 			color: {
 				type: 'string',
 			},
 			textColor: {
 				type: 'string',
+			},
+			align: {
+				type: 'string',
+				default: 'none',
 			},
 		},
 

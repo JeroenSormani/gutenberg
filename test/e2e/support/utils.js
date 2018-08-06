@@ -4,8 +4,13 @@
 import { join } from 'path';
 import { URL } from 'url';
 
+/**
+ * External dependencies
+ */
+import { times } from 'lodash';
+
 const {
-	WP_BASE_URL = 'http://localhost:8888',
+	WP_BASE_URL = 'http://localhost:8889',
 	WP_USERNAME = 'admin',
 	WP_PASSWORD = 'password',
 } = process.env;
@@ -25,6 +30,21 @@ const MOD_KEY = process.platform === 'darwin' ? 'Meta' : 'Control';
  * @type {RegExp}
  */
 const REGEXP_ZWSP = /[\u200B\u200C\u200D\uFEFF]/;
+
+/**
+ * Given an array of functions, each returning a promise, performs all
+ * promises in sequence (waterfall) order.
+ *
+ * @param {Function[]} sequence Array of promise creators.
+ *
+ * @return {Promise} Promise resolving once all in the sequence complete.
+ */
+async function promiseSequence( sequence ) {
+	return sequence.reduce(
+		( current, next ) => current.then( next ),
+		Promise.resolve()
+	);
+}
 
 export function getUrl( WPPath, query = '' ) {
 	const url = new URL( WP_BASE_URL );
@@ -120,21 +140,27 @@ export async function waitForPageDimensions( width, height ) {
 
 export async function switchToEditor( mode ) {
 	await page.click( '.edit-post-more-menu [aria-label="More"]' );
-	const [ button ] = await page.$x( `//button[contains(text(), \'${ mode } Editor\')]` );
+	const [ button ] = await page.$x( `//button[contains(text(), '${ mode } Editor')]` );
 	await button.click( 'button' );
 }
 
-export async function getHTMLFromCodeEditor() {
-	await switchToEditor( 'Code' );
-	const textEditorContent = await page.$eval( '.editor-post-text-editor', ( element ) => element.value );
-	await switchToEditor( 'Visual' );
+/**
+ * Returns a promise which resolves with the edited post content (HTML string).
+ *
+ * @return {Promise} Promise resolving with post content markup.
+ */
+export async function getEditedPostContent() {
+	const content = await page.evaluate( () => {
+		const { select } = window.wp.data;
+		return select( 'core/editor' ).getEditedPostContent();
+	} );
 
 	// Globally guard against zero-width characters.
-	if ( REGEXP_ZWSP.test( textEditorContent ) ) {
+	if ( REGEXP_ZWSP.test( content ) ) {
 		throw new Error( 'Unexpected zero-width space character in editor content.' );
 	}
 
-	return textEditorContent;
+	return content;
 }
 
 /**
@@ -154,20 +180,32 @@ export async function ensureSidebarOpened() {
 }
 
 /**
- * Opens the inserter, searches for the given term, then selects the first
- * result that appears.
+ * Search for block in the global inserter
  *
  * @param {string} searchTerm The text to search the inserter for.
  */
-export async function insertBlock( searchTerm ) {
+export async function searchForBlock( searchTerm ) {
 	await page.click( '.edit-post-header [aria-label="Add block"]' );
 	// Waiting here is necessary because sometimes the inserter takes more time to
 	// render than Puppeteer takes to complete the 'click' action
 	await page.waitForSelector( '.editor-inserter__menu' );
 	await page.keyboard.type( searchTerm );
-	await page.keyboard.press( 'Tab' );
-	await page.keyboard.press( 'Tab' );
-	await page.keyboard.press( 'Enter' );
+}
+
+/**
+ * Opens the inserter, searches for the given term, then selects the first
+ * result that appears.
+ *
+ * @param {string} searchTerm The text to search the inserter for.
+ * @param {string} panelName  The inserter panel to open (if it's closed by default).
+ */
+export async function insertBlock( searchTerm, panelName = null ) {
+	await searchForBlock( searchTerm );
+	if ( panelName ) {
+		const panelButton = ( await page.$x( `//button[contains(text(), '${ panelName }')]` ) )[ 0 ];
+		await panelButton.click();
+	}
+	await page.click( `button[aria-label="${ searchTerm }"]` );
 }
 
 /**
@@ -196,7 +234,7 @@ export async function pressWithModifier( modifier, key ) {
  */
 export async function clickOnMoreMenuItem( buttonLabel ) {
 	await page.click( '.edit-post-more-menu [aria-label="More"]' );
-	const itemButton = ( await page.$x( `//button[contains(text(), \'${ buttonLabel }\')]` ) )[ 0 ];
+	const itemButton = ( await page.$x( `//button[contains(text(), '${ buttonLabel }')]` ) )[ 0 ];
 	await itemButton.click( 'button' );
 }
 
@@ -223,14 +261,37 @@ export async function publishPost() {
 }
 
 /**
+ * Given the clientId of a block, selects the block on the editor.
+ *
+ * @param {string} clientId Identified of the block.
+ */
+export async function selectBlockByClientId( clientId ) {
+	await page.evaluate( ( id ) => {
+		wp.data.dispatch( 'core/editor' ).selectBlock( id );
+	}, clientId );
+}
+
+/**
  * Clicks on the button in the header which opens Document Settings sidebar when it is closed.
  */
 export async function openDocumentSettingsSidebar() {
-	const openButton = await page.$( '.edit-post-header__settings button[aria-label="Settings"][aria-expaned="false"]' );
+	const openButton = await page.$( '.edit-post-header__settings button[aria-label="Settings"][aria-expanded="false"]' );
 
 	if ( openButton ) {
 		await page.click( openButton );
 	}
+}
+
+/**
+ * Presses the given keyboard key a number of times in sequence.
+ *
+ * @param {string} key   Key to press.
+ * @param {number} count Number of times to press.
+ *
+ * @return {Promise} Promise resolving when key presses complete.
+ */
+export async function pressTimes( key, count ) {
+	return promiseSequence( times( count, () => () => page.keyboard.press( key ) ) );
 }
 
 export async function clearLocalStorage() {

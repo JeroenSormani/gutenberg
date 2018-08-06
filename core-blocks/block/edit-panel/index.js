@@ -1,22 +1,18 @@
 /**
  * WordPress dependencies
  */
-import { Button, withInstanceId } from '@wordpress/components';
+import { Button } from '@wordpress/components';
 import { Component, Fragment, createRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { keycodes } from '@wordpress/utils';
+import { ESCAPE } from '@wordpress/keycodes';
+import { withInstanceId } from '@wordpress/compose';
 
 /**
  * Internal dependencies
  */
 import './style.scss';
 
-/**
- * Module constants
- */
-const { ESCAPE } = keycodes;
-
-class SharedBlockEditPanel extends Component {
+class ReusableBlockEditPanel extends Component {
 	constructor() {
 		super( ...arguments );
 
@@ -25,6 +21,13 @@ class SharedBlockEditPanel extends Component {
 		this.handleFormSubmit = this.handleFormSubmit.bind( this );
 		this.handleTitleChange = this.handleTitleChange.bind( this );
 		this.handleTitleKeyDown = this.handleTitleKeyDown.bind( this );
+	}
+
+	componentDidMount() {
+		// Select the input text when the form opens.
+		if ( this.props.isEditing && this.titleField.current ) {
+			this.titleField.current.select();
+		}
 	}
 
 	componentDidUpdate( prevProps ) {
@@ -60,14 +63,14 @@ class SharedBlockEditPanel extends Component {
 		return (
 			<Fragment>
 				{ ( ! isEditing && ! isSaving ) && (
-					<div className="shared-block-edit-panel">
-						<b className="shared-block-edit-panel__info">
+					<div className="reusable-block-edit-panel">
+						<b className="reusable-block-edit-panel__info">
 							{ title }
 						</b>
 						<Button
 							ref={ this.editButton }
 							isLarge
-							className="shared-block-edit-panel__button"
+							className="reusable-block-edit-panel__button"
 							onClick={ onEdit }
 						>
 							{ __( 'Edit' ) }
@@ -75,10 +78,10 @@ class SharedBlockEditPanel extends Component {
 					</div>
 				) }
 				{ ( isEditing || isSaving ) && (
-					<form className="shared-block-edit-panel" onSubmit={ this.handleFormSubmit }>
+					<form className="reusable-block-edit-panel" onSubmit={ this.handleFormSubmit }>
 						<label
-							htmlFor={ `shared-block-edit-panel__title-${ instanceId }` }
-							className="shared-block-edit-panel__label"
+							htmlFor={ `reusable-block-edit-panel__title-${ instanceId }` }
+							className="reusable-block-edit-panel__label"
 						>
 							{ __( 'Name:' ) }
 						</label>
@@ -86,11 +89,11 @@ class SharedBlockEditPanel extends Component {
 							ref={ this.titleField }
 							type="text"
 							disabled={ isSaving }
-							className="shared-block-edit-panel__title"
+							className="reusable-block-edit-panel__title"
 							value={ title }
 							onChange={ this.handleTitleChange }
 							onKeyDown={ this.handleTitleKeyDown }
-							id={ `shared-block-edit-panel__title-${ instanceId }` }
+							id={ `reusable-block-edit-panel__title-${ instanceId }` }
 						/>
 						<Button
 							type="submit"
@@ -98,14 +101,14 @@ class SharedBlockEditPanel extends Component {
 							isLarge
 							isBusy={ isSaving }
 							disabled={ ! title || isSaving }
-							className="shared-block-edit-panel__button"
+							className="reusable-block-edit-panel__button"
 						>
 							{ __( 'Save' ) }
 						</Button>
 						<Button
 							isLarge
 							disabled={ isSaving }
-							className="shared-block-edit-panel__button"
+							className="reusable-block-edit-panel__button"
 							onClick={ onCancel }
 						>
 							{ __( 'Cancel' ) }
@@ -117,4 +120,4 @@ class SharedBlockEditPanel extends Component {
 	}
 }
 
-export default withInstanceId( SharedBlockEditPanel );
+export default withInstanceId( ReusableBlockEditPanel );

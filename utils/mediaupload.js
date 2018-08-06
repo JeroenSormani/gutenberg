@@ -6,12 +6,10 @@ import { compact, flatMap, forEach, get, has, includes, map, noop, startsWith } 
 /**
  * WordPress dependencies
  */
+import deprecated from '@wordpress/deprecated';
 import { __, sprintf } from '@wordpress/i18n';
-
-/**
- * WordPress dependencies
- */
-import apiRequest from '@wordpress/api-request';
+import apiFetch from '@wordpress/api-fetch';
+import { select } from '@wordpress/data';
 
 /**
  * Browsers may use unexpected mime types, and they differ from browser to browser.
@@ -27,6 +25,11 @@ import apiRequest from '@wordpress/api-request';
  * @return {?Array} An array of mime types or the parameter passed if it was "falsy".
  */
 export function getMimeTypesArray( wpMimeTypesObject ) {
+	deprecated( 'wp.utils.getMimeTypesArray', {
+		version: '3.6',
+		plugin: 'Gutenberg',
+	} );
+
 	if ( ! wpMimeTypesObject ) {
 		return wpMimeTypesObject;
 	}
@@ -38,13 +41,13 @@ export function getMimeTypesArray( wpMimeTypesObject ) {
 }
 
 /**
- *	Media Upload is used by audio, image, gallery and video blocks to handle uploading a media file
- *	when a file upload button is activated.
+ *	Media Upload is used by audio, image, gallery, video, and file blocks to
+ *	handle uploading a media file when a file upload button is activated.
  *
  *	TODO: future enhancement to add an upload indicator.
  *
  * @param   {Object}   $0                   Parameters object passed to the function.
- * @param   {string}   $0.allowedType       The type of media that can be uploaded.
+ * @param   {string}   $0.allowedType       The type of media that can be uploaded, or '*' to allow all.
  * @param   {?Object}  $0.additionalData    Additional data to include in the request.
  * @param   {Array}    $0.filesList         List of files.
  * @param   {?number}  $0.maxUploadFileSize Maximum upload size in bytes allowed for the site.
@@ -55,10 +58,19 @@ export function mediaUpload( {
 	allowedType,
 	additionalData = {},
 	filesList,
-	maxUploadFileSize = get( window, [ '_wpMediaSettings', 'maxUploadSize' ], 0 ),
+	maxUploadFileSize,
 	onError = noop,
 	onFileChange,
 } ) {
+	deprecated( 'wp.utils.mediaUpload', {
+		version: '3.6',
+		alternative: 'wp.editor.mediaUpload',
+		plugin: 'Gutenberg',
+	} );
+
+	const editorSettings = select( 'core/editor' ).getSettings();
+	maxUploadFileSize = maxUploadFileSize || editorSettings.maxUploadFileSize;
+
 	// Cast filesList to array
 	const files = [ ...filesList ];
 
@@ -69,10 +81,12 @@ export function mediaUpload( {
 	};
 
 	// Allowed type specified by consumer
-	const isAllowedType = ( fileType ) => startsWith( fileType, `${ allowedType }/` );
+	const isAllowedType = ( fileType ) => {
+		return ( allowedType === '*' ) || startsWith( fileType, `${ allowedType }/` );
+	};
 
 	// Allowed types for the current WP_User
-	const allowedMimeTypesForUser = getMimeTypesArray( get( window, [ '_wpMediaSettings', 'allowedMimeTypes' ] ) );
+	const allowedMimeTypesForUser = getMimeTypesArray( editorSettings.allowedMimeTypes );
 	const isAllowedMimeTypeForUser = ( fileType ) => {
 		return includes( allowedMimeTypesForUser, fileType );
 	};
@@ -111,23 +125,28 @@ export function mediaUpload( {
 		filesSet.push( { url: window.URL.createObjectURL( mediaFile ) } );
 		onFileChange( filesSet );
 
-		return createMediaFromFile( mediaFile, additionalData ).then(
-			( savedMedia ) => {
+		return createMediaFromFile( mediaFile, additionalData )
+			.then( ( savedMedia ) => {
 				const mediaObject = {
 					alt: savedMedia.alt_text,
 					caption: get( savedMedia, [ 'caption', 'raw' ], '' ),
 					id: savedMedia.id,
 					link: savedMedia.link,
+					title: savedMedia.title.raw,
 					url: savedMedia.source_url,
+					mediaDetails: {},
 				};
+				if ( has( savedMedia, [ 'media_details', 'sizes' ] ) ) {
+					mediaObject.mediaDetails.sizes = get( savedMedia, [ 'media_details', 'sizes' ], {} );
+				}
 				setAndUpdateFiles( idx, mediaObject );
-			},
-			( response ) => {
+			} )
+			.catch( ( error ) => {
 				// Reset to empty on failure.
 				setAndUpdateFiles( idx, null );
 				let message;
-				if ( has( response, [ 'responseJSON', 'message' ] ) ) {
-					message = get( response, [ 'responseJSON', 'message' ] );
+				if ( has( error, [ 'message' ] ) ) {
+					message = get( error, [ 'message' ] );
 				} else {
 					message = sprintf(
 						// translators: %s: file name
@@ -140,8 +159,7 @@ export function mediaUpload( {
 					message,
 					file: mediaFile,
 				} );
-			}
-		);
+			} );
 	} );
 }
 
@@ -156,11 +174,9 @@ function createMediaFromFile( file, additionalData ) {
 	const data = new window.FormData();
 	data.append( 'file', file, file.name || file.type.replace( '/', '.' ) );
 	forEach( additionalData, ( ( value, key ) => data.append( key, value ) ) );
-	return apiRequest( {
+	return apiFetch( {
 		path: '/wp/v2/media',
-		data,
-		contentType: false,
-		processData: false,
+		body: data,
 		method: 'POST',
 	} );
 }
@@ -172,6 +188,11 @@ function createMediaFromFile( file, additionalData ) {
  * @return {Promise}     Promise resolved once the image is preloaded.
  */
 export function preloadImage( url ) {
+	deprecated( 'wp.utils.preloadImage', {
+		version: '3.6',
+		plugin: 'Gutenberg',
+	} );
+
 	return new Promise( ( resolve ) => {
 		const newImg = new window.Image();
 		newImg.onload = function() {

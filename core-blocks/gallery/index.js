@@ -8,7 +8,8 @@ import { filter, every } from 'lodash';
  */
 import { __ } from '@wordpress/i18n';
 import { createBlock } from '@wordpress/blocks';
-import { RichText, editorMediaUpload } from '@wordpress/editor';
+import { RichText, mediaUpload } from '@wordpress/editor';
+import { createBlobURL } from '@wordpress/blob';
 
 /**
  * Internal dependencies
@@ -17,10 +18,6 @@ import './style.scss';
 import { default as edit, defaultColumnsNumber } from './edit';
 
 const blockAttributes = {
-	align: {
-		type: 'string',
-		default: 'none',
-	},
 	images: {
 		type: 'array',
 		default: [],
@@ -77,6 +74,9 @@ export const settings = {
 	category: 'common',
 	keywords: [ __( 'images' ), __( 'photos' ) ],
 	attributes: blockAttributes,
+	supports: {
+		align: true,
+	},
 
 	transforms: {
 		from: [
@@ -125,15 +125,18 @@ export const settings = {
 				},
 			},
 			{
+				// When created by drag and dropping multiple files on an insertion point
 				type: 'files',
 				isMatch( files ) {
 					return files.length !== 1 && every( files, ( file ) => file.type.indexOf( 'image/' ) === 0 );
 				},
 				transform( files, onChange ) {
-					const block = createBlock( 'core/gallery' );
-					editorMediaUpload( {
+					const block = createBlock( 'core/gallery', {
+						images: files.map( ( file ) => ( { url: createBlobURL( file ) } ) ),
+					} );
+					mediaUpload( {
 						filesList: files,
-						onFileChange: ( images ) => onChange( block.uid, { images } ),
+						onFileChange: ( images ) => onChange( block.clientId, { images } ),
 						allowedType: 'image',
 					} );
 					return block;
@@ -154,19 +157,12 @@ export const settings = {
 		],
 	},
 
-	getEditWrapperProps( attributes ) {
-		const { align } = attributes;
-		if ( 'left' === align || 'right' === align || 'wide' === align || 'full' === align ) {
-			return { 'data-align': align };
-		}
-	},
-
 	edit,
 
 	save( { attributes } ) {
-		const { images, columns = defaultColumnsNumber( attributes ), align, imageCrop, linkTo } = attributes;
+		const { images, columns = defaultColumnsNumber( attributes ), imageCrop, linkTo } = attributes;
 		return (
-			<ul className={ `align${ align } columns-${ columns } ${ imageCrop ? 'is-cropped' : '' }` } >
+			<ul className={ `columns-${ columns } ${ imageCrop ? 'is-cropped' : '' }` } >
 				{ images.map( ( image ) => {
 					let href;
 
@@ -203,6 +199,10 @@ export const settings = {
 				images: {
 					...blockAttributes.images,
 					selector: 'div.wp-block-gallery figure.blocks-gallery-image img',
+				},
+				align: {
+					type: 'string',
+					default: 'none',
 				},
 			},
 

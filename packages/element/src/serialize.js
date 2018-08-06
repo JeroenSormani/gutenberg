@@ -28,12 +28,15 @@
 /**
  * External dependencies
  */
-import { flowRight, isEmpty, castArray, omit, kebabCase } from 'lodash';
-
-/**
- * WordPress dependencies
- */
-import deprecated from '@wordpress/deprecated';
+import {
+	flowRight,
+	isEmpty,
+	castArray,
+	omit,
+	startsWith,
+	kebabCase,
+	isPlainObject,
+} from 'lodash';
 
 /**
  * Internal dependencies
@@ -360,6 +363,29 @@ function getNormalAttributeName( attribute ) {
 }
 
 /**
+ * Returns the normal form of the style property name for HTML.
+ *
+ * - Converts property names to kebab-case, e.g. 'backgroundColor' → 'background-color'
+ * - Leaves custom attributes alone, e.g. '--myBackgroundColor' → '--myBackgroundColor'
+ * - Converts vendor-prefixed property names to -kebab-case, e.g. 'MozTransform' → '-moz-transform'
+ *
+ * @param {string} property Property name.
+ *
+ * @return {string} Normalized property name.
+ */
+function getNormalStylePropertyName( property ) {
+	if ( startsWith( property, '--' ) ) {
+		return property;
+	}
+
+	if ( hasPrefix( property, [ 'ms', 'O', 'Moz', 'Webkit' ] ) ) {
+		return '-' + kebabCase( property );
+	}
+
+	return kebabCase( property );
+}
+
+/**
  * Returns the normal form of the style property value for HTML. Appends a
  * default pixel unit if numeric, not a unitless property, and not zero.
  *
@@ -368,7 +394,7 @@ function getNormalAttributeName( attribute ) {
  *
  * @return {*} Normalized property value.
  */
-function getNormalStyleValue( property, value ) {
+function getNormalStylePropertyValue( property, value ) {
 	if ( typeof value === 'number' && 0 !== value &&
 			! CSS_PROPERTIES_SUPPORTS_UNITLESS.has( property ) ) {
 		return value + 'px';
@@ -487,15 +513,6 @@ export function renderNativeComponent( type, props, context = {} ) {
 export function renderComponent( Component, props, context = {} ) {
 	const instance = new Component( props, context );
 
-	if ( typeof instance.componentWillMount === 'function' ) {
-		instance.componentWillMount();
-		deprecated( 'componentWillMount', {
-			version: '3.3',
-			alternative: 'the constructor',
-			plugin: 'Gutenberg',
-		} );
-	}
-
 	if ( typeof instance.getChildContext === 'function' ) {
 		Object.assign( context, instance.getChildContext() );
 	}
@@ -595,6 +612,11 @@ export function renderAttributes( props ) {
  * @return {string} Style attribute value.
  */
 export function renderStyle( style ) {
+	// Only generate from object, e.g. tolerate string value.
+	if ( ! isPlainObject( style ) ) {
+		return style;
+	}
+
 	let result;
 
 	for ( const property in style ) {
@@ -609,7 +631,9 @@ export function renderStyle( style ) {
 			result = '';
 		}
 
-		result += kebabCase( property ) + ':' + getNormalStyleValue( property, value );
+		const normalName = getNormalStylePropertyName( property );
+		const normalValue = getNormalStylePropertyValue( property, value );
+		result += normalName + ':' + normalValue;
 	}
 
 	return result;
